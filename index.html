@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="1초 로드무비">
+<meta name="theme-color" content="#000000">
+<title>1초 로드무비</title>
+<style>
+  :root { --accent:#ff453a; --bg:#000; --fg:#fff; --dim:#8e8e93; --card:#1c1c1e; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; height:100%; background:var(--bg); color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo",sans-serif; }
+  body { display:flex; flex-direction:column; padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom); }
+  header { display:flex; justify-content:space-between; align-items:center; padding:10px 16px; }
+  header h1 { font-size:17px; margin:0; font-weight:600; }
+  #count { font-size:17px; font-variant-numeric:tabular-nums; color:var(--dim); }
+  #count b { color:var(--fg); }
+  #stage { position:relative; flex:1; min-height:0; margin:0 12px; border-radius:16px; overflow:hidden; background:#111; }
+  #preview { width:100%; height:100%; object-fit:cover; display:block; }
+  #camMsg { position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    text-align:center; padding:24px; color:var(--dim); font-size:15px; line-height:1.5; }
+  #flash { position:absolute; inset:0; border:4px solid var(--accent); border-radius:16px; opacity:0; transition:opacity .1s; pointer-events:none; }
+  #flash.on { opacity:1; }
+  #flipBtn { position:absolute; top:10px; right:10px; width:40px; height:40px; border-radius:20px; border:none;
+    background:rgba(0,0,0,.45); color:#fff; font-size:20px; }
+  #micBtn { position:absolute; top:10px; left:10px; width:40px; height:40px; border-radius:20px; border:none;
+    background:rgba(0,0,0,.45); color:#fff; font-size:18px; }
+  #strip { display:grid; grid-template-columns:repeat(8,1fr); gap:3px; padding:10px 12px 0; }
+  .slot { aspect-ratio:9/16; border-radius:4px; background:var(--card); overflow:hidden; position:relative; }
+  .slot img { width:100%; height:100%; object-fit:cover; display:block; }
+  .slot span { position:absolute; bottom:1px; right:3px; font-size:9px; color:#fff; text-shadow:0 0 3px #000; }
+  #controls { display:flex; align-items:center; justify-content:space-around; padding:14px 16px 10px; }
+  .side { width:76px; height:44px; border-radius:22px; border:none; background:var(--card); color:#fff; font-size:14px; }
+  .side:disabled { opacity:.35; }
+  #shutter { width:76px; height:76px; border-radius:50%; border:4px solid #fff; background:transparent; padding:0; position:relative; }
+  #shutter i { position:absolute; inset:5px; border-radius:50%; background:var(--accent); transition:all .15s; }
+  #shutter.rec i { inset:20px; border-radius:6px; }
+  #shutter:disabled { opacity:.35; }
+  #shutter svg { position:absolute; inset:-4px; transform:rotate(-90deg); }
+  #ring { stroke:var(--accent); stroke-width:4; fill:none; stroke-dasharray:239; stroke-dashoffset:239; }
+  .overlay { position:fixed; inset:0; background:rgba(0,0,0,.92); display:none; flex-direction:column;
+    align-items:center; justify-content:center; padding:24px; gap:14px; z-index:10; }
+  .overlay.show { display:flex; }
+  .overlay video { max-width:100%; max-height:60vh; border-radius:12px; background:#111; }
+  .row { display:flex; gap:10px; flex-wrap:wrap; justify-content:center; }
+  .btn { padding:12px 20px; border-radius:12px; border:none; font-size:16px; background:var(--card); color:#fff; }
+  .btn.primary { background:#0a84ff; }
+  .btn.danger { background:var(--accent); }
+  #progText { font-size:15px; color:var(--dim); text-align:center; line-height:1.5; }
+  #bar { width:80%; height:6px; background:var(--card); border-radius:3px; overflow:hidden; }
+  #bar div { height:100%; width:0; background:#0a84ff; transition:width .2s; }
+  .opt { display:flex; gap:8px; }
+  .opt label { padding:8px 14px; border-radius:10px; background:var(--card); font-size:14px; }
+  .opt input { display:none; }
+  .opt input:checked + span { color:#0a84ff; font-weight:600; }
+</style>
+</head>
+<body>
+<header>
+  <h1>1초 로드무비</h1>
+  <div id="count"><b>0</b> / 24</div>
+</header>
+
+<div id="stage">
+  <video id="preview" playsinline muted autoplay></video>
+  <div id="camMsg">카메라를 켜는 중…</div>
+  <div id="flash"></div>
+  <button id="flipBtn" aria-label="카메라 전환">⟲</button>
+  <button id="micBtn" aria-label="소리 녹음 켜기/끄기">🎤</button>
+</div>
+
+<div id="strip"></div>
+
+<div id="controls">
+  <button class="side" id="resetBtn">새 여행</button>
+  <button id="shutter" aria-label="1초 촬영">
+    <svg width="84" height="84" viewBox="0 0 84 84"><circle id="ring" cx="42" cy="42" r="38"/></svg>
+    <i></i>
+  </button>
+  <button class="side" id="makeBtn" disabled>영상 만들기</button>
+</div>
+
+<!-- 클립 미리보기 -->
+<div class="overlay" id="clipView">
+  <video id="clipVideo" playsinline loop></video>
+  <div id="clipInfo" style="color:var(--dim);font-size:14px"></div>
+  <div class="row">
+    <button class="btn danger" id="delClip">이 클립 삭제</button>
+    <button class="btn" id="closeClip">닫기</button>
+  </div>
+</div>
+
+<!-- 합치기 -->
+<div class="overlay" id="makeView">
+  <div id="makeSetup" class="row" style="flex-direction:column;align-items:center;gap:14px">
+    <div style="font-size:17px;font-weight:600">영상 비율</div>
+    <div class="opt">
+      <label><input type="radio" name="ori" value="p" checked><span>세로 9:16</span></label>
+      <label><input type="radio" name="ori" value="l"><span>가로 16:9</span></label>
+    </div>
+    <div class="row">
+      <button class="btn primary" id="startMake">합치기 시작</button>
+      <button class="btn" id="cancelMake">취소</button>
+    </div>
+  </div>
+  <div id="bar"><div></div></div>
+  <div id="progText"></div>
+  <video id="resultVideo" playsinline controls style="display:none"></video>
+  <div class="row" id="resultBtns" style="display:none">
+    <button class="btn primary" id="saveBtn">사진 앱에 저장 / 공유</button>
+    <button class="btn" id="closeMake">닫기</button>
+  </div>
+</div>
+
+<!-- 합치기용 숨김 요소 -->
+<canvas id="canvas" style="display:none"></canvas>
+
+<script>
+const TARGET = 24;          // 모을 클립 수
+const REC_MS = 1300;        // 실제 녹화 시간(앞부분 여유 포함)
+const SKIP = 0.2;           // 각 클립 앞에서 잘라낼 시간(초) — 녹화 시작 직후 흔들림/검은 화면 제거
+const SEG = 1.0;            // 최종 영상에 쓸 클립 길이(초)
+
+const $ = id => document.getElementById(id);
+const preview = $('preview'), camMsg = $('camMsg'), shutter = $('shutter'), ring = $('ring');
+let stream = null, facing = 'environment', busy = false, clips = [], viewingId = null, resultFile = null;
+
+/* ---------- IndexedDB ---------- */
+const DB = new Promise((res, rej) => {
+  const r = indexedDB.open('roadclip', 1);
+  r.onupgradeneeded = () => r.result.createObjectStore('clips', { keyPath: 'id', autoIncrement: true });
+  r.onsuccess = () => res(r.result);
+  r.onerror = () => rej(r.error);
+});
+async function tx(mode, fn) {
+  const db = await DB;
+  return new Promise((res, rej) => {
+    const t = db.transaction('clips', mode), s = t.objectStore('clips');
+    const out = fn(s);
+    t.oncomplete = () => res(out && out.result);
+    t.onerror = () => rej(t.error);
+  });
+}
+const dbAll = () => tx('readonly', s => s.getAll());
+const dbAdd = o => tx('readwrite', s => s.add(o));
+const dbDel = id => tx('readwrite', s => s.delete(id));
+const dbClear = () => tx('readwrite', s => s.clear());
+
+/* ---------- 포맷 ---------- */
+function pickMime() {
+  const list = ['video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4', 'video/webm;codecs=vp9,opus', 'video/webm'];
+  return list.find(t => window.MediaRecorder && MediaRecorder.isTypeSupported(t)) || '';
+}
+const MIME = pickMime();
+const EXT = MIME.includes('mp4') ? 'mp4' : 'webm';
+
+/* ---------- 카메라 ---------- */
+async function startCam() {
+  stopCam();
+  camMsg.style.display = 'flex';
+  camMsg.textContent = '카메라를 켜는 중…';
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: facing }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+      audio: micOn ? { echoCancellation: false, noiseSuppression: false, autoGainControl: true } : false
+    }).catch(async e => {
+      if (!micOn) throw e;
+      // 마이크 권한이 없으면 영상만이라도
+      micOn = false; updateMicBtn();
+      return navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: facing }, width: { ideal: 1920 }, height: { ideal: 1080 }, frameRate: { ideal: 30 } },
+        audio: false
+      });
+    });
+    preview.srcObject = stream;
+    preview.style.transform = facing === 'user' ? 'scaleX(-1)' : '';
+    await preview.play().catch(() => {});
+    camMsg.style.display = 'none';
+  } catch (e) {
+    camMsg.innerHTML = '카메라를 쓸 수 없어요.<br>설정 &gt; Safari &gt; 카메라 권한을 확인하거나<br>화면을 한 번 눌러 주세요.';
+    camMsg.onclick = startCam;
+  }
+}
+function stopCam() {
+  if (stream) stream.getTracks().forEach(t => t.stop());
+  stream = null;
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) stopCam(); else if (!busy) startCam();
+});
+let micOn = (() => { try { return localStorage.getItem('mic') !== 'off'; } catch (e) { return true; } })();
+function updateMicBtn() { $('micBtn').textContent = micOn ? '🎤' : '🔇'; $('micBtn').style.opacity = micOn ? 1 : .6; }
+$('micBtn').onclick = () => {
+  if (busy) return;
+  micOn = !micOn;
+  try { localStorage.setItem('mic', micOn ? 'on' : 'off'); } catch (e) {}
+  updateMicBtn(); startCam();
+};
+updateMicBtn();
+$('flipBtn').onclick = () => { if (busy) return; facing = facing === 'environment' ? 'user' : 'environment'; startCam(); };
+
+/* ---------- 촬영 ---------- */
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function thumbFromPreview() {
+  const c = document.createElement('canvas');
+  const vw = preview.videoWidth || 360, vh = preview.videoHeight || 640;
+  const h = 160, w = Math.round(h * vw / vh);
+  c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  if (facing === 'user') { g.translate(w, 0); g.scale(-1, 1); }
+  g.drawImage(preview, 0, 0, w, h);
+  return c.toDataURL('image/jpeg', 0.7);
+}
+shutter.onclick = async () => {
+  if (busy || !stream || clips.length >= TARGET) return;
+  busy = true; shutter.classList.add('rec'); $('flash').classList.add('on');
+  ring.style.transition = 'none'; ring.style.strokeDashoffset = 239;
+  requestAnimationFrame(() => { ring.style.transition = `stroke-dashoffset ${REC_MS}ms linear`; ring.style.strokeDashoffset = 0; });
+  try {
+    const rec = new MediaRecorder(stream, MIME ? { mimeType: MIME, videoBitsPerSecond: 8e6 } : undefined);
+    const chunks = [];
+    rec.ondataavailable = e => e.data && e.data.size && chunks.push(e.data);
+    const stopped = new Promise(r => rec.onstop = r);
+    rec.start();
+    await sleep(REC_MS / 2);
+    const thumb = thumbFromPreview();
+    await sleep(REC_MS / 2);
+    rec.stop(); await stopped;
+    const blob = new Blob(chunks, { type: rec.mimeType || MIME || 'video/mp4' });
+    const buf = await blob.arrayBuffer();
+    await dbAdd({ buf, type: blob.type, thumb, mirror: facing === 'user', createdAt: Date.now() });
+    if (navigator.vibrate) navigator.vibrate(30);
+    await refresh();
+  } catch (e) {
+    alert('촬영에 실패했어요: ' + e.message);
+  }
+  shutter.classList.remove('rec'); $('flash').classList.remove('on');
+  ring.style.transition = 'none'; ring.style.strokeDashoffset = 239;
+  busy = false;
+};
+
+/* ---------- 목록 ---------- */
+async function refresh() {
+  clips = (await dbAll()).sort((a, b) => a.createdAt - b.createdAt);
+  $('count').innerHTML = `<b>${clips.length}</b> / ${TARGET}`;
+  const strip = $('strip'); strip.innerHTML = '';
+  for (let i = 0; i < TARGET; i++) {
+    const d = document.createElement('div'); d.className = 'slot';
+    const c = clips[i];
+    if (c) {
+      d.innerHTML = `<img src="${c.thumb}"><span>${i + 1}</span>`;
+      d.onclick = () => openClip(c, i);
+    }
+    strip.appendChild(d);
+  }
+  shutter.disabled = clips.length >= TARGET;
+  $('makeBtn').disabled = clips.length === 0;
+}
+function fmtDate(t) {
+  const d = new Date(t);
+  return `${d.getMonth() + 1}월 ${d.getDate()}일 ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+function openClip(c, i) {
+  viewingId = c.id;
+  const v = $('clipVideo');
+  if (v.src) URL.revokeObjectURL(v.src);
+  v.src = URL.createObjectURL(new Blob([c.buf], { type: c.type }));
+  v.style.transform = c.mirror ? 'scaleX(-1)' : '';
+  $('clipInfo').textContent = `${i + 1}번째 · ${fmtDate(c.createdAt)}`;
+  $('clipView').classList.add('show');
+  v.muted = false;
+  v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+}
+$('closeClip').onclick = () => { $('clipView').classList.remove('show'); $('clipVideo').pause(); };
+$('delClip').onclick = async () => {
+  if (!confirm('이 클립을 삭제할까요?')) return;
+  await dbDel(viewingId); $('closeClip').onclick(); refresh();
+};
+$('resetBtn').onclick = async () => {
+  if (!clips.length) return;
+  if (!confirm(`모은 클립 ${clips.length}개를 모두 지우고 새로 시작할까요?\n(먼저 영상을 만들어 저장했는지 확인하세요)`)) return;
+  await dbClear(); refresh();
+};
+
+/* ---------- 합치기 ---------- */
+$('makeBtn').onclick = () => {
+  if (clips.length < TARGET && !confirm(`아직 ${clips.length}개예요. 지금 있는 클립으로 만들까요?`)) return;
+  $('makeSetup').style.display = 'flex';
+  $('bar').style.display = 'none'; $('progText').textContent = '';
+  $('resultVideo').style.display = 'none'; $('resultBtns').style.display = 'none';
+  $('makeView').classList.add('show');
+};
+$('cancelMake').onclick = $('closeMake').onclick = () => {
+  $('makeView').classList.remove('show');
+  $('resultVideo').pause();
+  if (!busy) startCam();
+};
+
+function loadVideo(c) {
+  return new Promise((res, rej) => {
+    const v = document.createElement('video');
+    v.muted = true; v.playsInline = true; v.preload = 'auto';
+    v.setAttribute('playsinline', '');
+    v.onloadeddata = () => res(v);
+    v.onerror = () => rej(new Error('클립을 읽지 못했어요'));
+    v.src = URL.createObjectURL(new Blob([c.buf], { type: c.type }));
+    v._mirror = c.mirror;
+    v.load();
+  });
+}
+function drawCover(g, v, W, H) {
+  const vw = v.videoWidth, vh = v.videoHeight;
+  if (!vw || !vh) return;
+  const s = Math.max(W / vw, H / vh), dw = vw * s, dh = vh * s;
+  g.save();
+  if (v._mirror) { g.translate(W, 0); g.scale(-1, 1); }
+  g.drawImage(v, (W - dw) / 2, (H - dh) / 2, dw, dh);
+  g.restore();
+}
+function playSegment(v, g, W, H, rec, audio) {
+  return new Promise(async res => {
+    let started = false, done = false, src = null;
+    const canPause = typeof rec.pause === 'function';
+    const finish = () => {
+      if (done) return; done = true; v.pause();
+      if (src) { try { src.stop(); } catch (e) {} }
+      if (canPause && rec.state === 'recording') rec.pause();
+      res();
+    };
+    const tick = () => {
+      if (done) return;
+      drawCover(g, v, W, H);
+      const t = v.currentTime;
+      if (!started && t >= SKIP) {
+        started = true;
+        if (canPause && rec.state === 'paused') rec.resume();
+        if (audio && audio.buf) {
+          try {
+            src = audio.ctx.createBufferSource();
+            src.buffer = audio.buf;
+            src.connect(audio.dest);
+            const off = Math.min(t, Math.max(0, audio.buf.duration - 0.01));
+            src.start(0, off, SEG);
+          } catch (e) { src = null; }
+        }
+      }
+      if (t >= SKIP + SEG || v.ended) return finish();
+      requestAnimationFrame(tick);
+    };
+    v.onended = finish;
+    v.currentTime = 0;
+    try { await v.play(); } catch (e) { return finish(); }
+    requestAnimationFrame(tick);
+  });
+}
+
+$('startMake').onclick = async () => {
+  busy = true; stopCam();
+  // 오디오 컨텍스트는 버튼을 누른 순간(사용자 동작) 안에서 만들어야 iOS에서 동작함
+  let actx = null;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    actx = new AC();
+    actx.resume();
+  } catch (e) { actx = null; }
+  $('makeSetup').style.display = 'none';
+  $('bar').style.display = 'block';
+  const bar = $('bar').firstElementChild, prog = $('progText');
+  const portrait = document.querySelector('input[name=ori]:checked').value === 'p';
+  const W = portrait ? 1080 : 1920, H = portrait ? 1920 : 1080;
+  const canvas = $('canvas'); canvas.width = W; canvas.height = H;
+  const g = canvas.getContext('2d');
+  g.fillStyle = '#000'; g.fillRect(0, 0, W, H);
+
+  try {
+    const list = clips.slice(0, TARGET);
+    const cs = canvas.captureStream(30);
+    const tracks = [...cs.getVideoTracks()];
+
+    // 각 클립의 소리 미리 풀어두기
+    let dest = null, bufs = [];
+    if (actx) {
+      prog.textContent = '소리 준비 중…';
+      dest = actx.createMediaStreamDestination();
+      for (const c of list) {
+        try { bufs.push(await actx.decodeAudioData(c.buf.slice(0))); }
+        catch (e) { bufs.push(null); }   // 소리 없는 클립
+      }
+      if (bufs.some(b => b)) tracks.push(...dest.stream.getAudioTracks());
+      else dest = null;
+    }
+
+    const rec = new MediaRecorder(new MediaStream(tracks), MIME ? { mimeType: MIME, videoBitsPerSecond: 12e6, audioBitsPerSecond: 192000 } : undefined);
+    const chunks = [];
+    rec.ondataavailable = e => e.data && e.data.size && chunks.push(e.data);
+    const stopped = new Promise(r => rec.onstop = r);
+
+    let cur = await loadVideo(list[0]);
+    drawCover(g, cur, W, H);
+    rec.start();
+    if (typeof rec.pause === 'function') rec.pause();
+
+    for (let i = 0; i < list.length; i++) {
+      prog.textContent = `합치는 중… ${i + 1} / ${list.length}\n화면을 끄지 말고 기다려 주세요`;
+      bar.style.width = `${(i / list.length) * 100}%`;
+      const nextP = i + 1 < list.length ? loadVideo(list[i + 1]) : null;
+      await playSegment(cur, g, W, H, rec, dest ? { ctx: actx, dest, buf: bufs[i] } : null);
+      URL.revokeObjectURL(cur.src);
+      if (nextP) cur = await nextP;
+    }
+    if (rec.state === 'paused') rec.resume();
+    await sleep(100);
+    rec.stop(); await stopped;
+
+    const blob = new Blob(chunks, { type: rec.mimeType || MIME || 'video/mp4' });
+    const d = new Date();
+    const name = `roadmovie_${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.${EXT}`;
+    resultFile = new File([blob], name, { type: blob.type });
+    bar.style.width = '100%';
+    prog.textContent = `완성! (${list.length}개 클립)`;
+    const rv = $('resultVideo');
+    rv.src = URL.createObjectURL(blob); rv.style.display = 'block';
+    $('resultBtns').style.display = 'flex';
+  } catch (e) {
+    prog.textContent = '합치기에 실패했어요: ' + e.message;
+    $('resultBtns').style.display = 'flex';
+  }
+  if (actx) actx.close().catch(() => {});
+  busy = false;
+};
+
+$('saveBtn').onclick = async () => {
+  if (!resultFile) return;
+  if (navigator.canShare && navigator.canShare({ files: [resultFile] })) {
+    try { await navigator.share({ files: [resultFile] }); } catch (e) {}
+  } else {
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(resultFile); a.download = resultFile.name;
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+};
+
+/* ---------- 시작 ---------- */
+if (navigator.storage && navigator.storage.persist) navigator.storage.persist();
+refresh();
+startCam();
+</script>
+</body>
+</html>
