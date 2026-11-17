@@ -40,7 +40,7 @@
   #shutter i { position:absolute; inset:5px; border-radius:50%; background:var(--accent); transition:all .15s; }
   #shutter.rec i { inset:20px; border-radius:6px; }
   #shutter:disabled { opacity:.35; }
-  #shutter svg { position:absolute; inset:-4px; transform:rotate(-90deg); }
+  #shutter svg { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%) rotate(-90deg); }
   #ring { stroke:var(--accent); stroke-width:4; fill:none; stroke-dasharray:239; stroke-dashoffset:239; }
   .overlay { position:fixed; inset:0; background:rgba(0,0,0,.92); display:none; flex-direction:column;
     align-items:center; justify-content:center; padding:24px; gap:14px; z-index:10; }
