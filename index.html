@@ -459,9 +459,16 @@ $('startMake').onclick = async () => {
     const firstDate = fmtDateOnly(list[0].createdAt);
     const lastDate = fmtDateOnly(list[list.length - 1].createdAt);
     const titleText = firstDate === lastDate ? firstDate : `${firstDate} - ${lastDate}`;
-    drawTitleCard(g, W, H, titleText);
     prog.textContent = '날짜 장면 녹화 중…';
-    await sleep(TITLE_MS);
+    await new Promise(res => {
+      const t0 = performance.now();
+      const tick = () => {
+        drawTitleCard(g, W, H, titleText);   // 안 바뀌는 화면도 매 프레임 다시 그려야 캡처가 끊기지 않음(사파리)
+        if (performance.now() - t0 >= TITLE_MS) return res();
+        requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    });
 
     await sleep(100);
     rec.stop(); await stopped;
