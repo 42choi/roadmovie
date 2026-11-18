@@ -364,6 +364,12 @@ function drawTitleCard(g, W, H, text, alpha) {
   g.fillText(text, W / 2, H / 2);
   g.globalAlpha = 1;
 }
+function markFrameChanged(g, W, H, n) {
+  // 완전히 똑같은 화면이 계속되면 아이폰 인코더가 그 구간을 생략해버려서,
+  // 글씨에는 손대지 않고 구석의 안 보이는 아주 작은 점만 매 프레임 바꿔 "변화"로 인식시킴
+  g.fillStyle = (n % 2) ? 'rgba(0,0,0,0.01)' : 'rgba(255,255,255,0.01)';
+  g.fillRect(W - 2, H - 2, 2, 2);
+}
 function playSegment(v, g, W, H, rec, audio) {
   return new Promise(async res => {
     let started = false, done = false, src = null;
@@ -465,15 +471,14 @@ $('startMake').onclick = async () => {
     const TITLE_FADE_MS = 300; // 나타나고 사라지는 데 걸리는 시간 — 나머지는 선명하게 유지
     await new Promise(res => {
       const t0 = performance.now();
+      let n = 0;
       const tick = () => {
         const elapsed = performance.now() - t0;
-        let base = 1;
-        if (elapsed < TITLE_FADE_MS) base = elapsed / TITLE_FADE_MS;
-        else if (elapsed > TITLE_MS - TITLE_FADE_MS) base = Math.max(0, (TITLE_MS - elapsed) / TITLE_FADE_MS);
-        // 완전히 똑같은 정지 화면이 계속되면 아이폰 인코더가 그 구간을 생략해버려서,
-        // 눈에 안 보일 정도의 아주 미세한 떨림을 계속 줘서 녹화에서 빠지지 않게 함
-        const alpha = Math.max(0, Math.min(1, base + 0.015 * Math.sin(elapsed / 60)));
+        let alpha = 1;
+        if (elapsed < TITLE_FADE_MS) alpha = elapsed / TITLE_FADE_MS;
+        else if (elapsed > TITLE_MS - TITLE_FADE_MS) alpha = Math.max(0, (TITLE_MS - elapsed) / TITLE_FADE_MS);
         drawTitleCard(g, W, H, titleText, alpha);
+        markFrameChanged(g, W, H, n++);
         if (elapsed >= TITLE_MS) return res();
         requestAnimationFrame(tick);
       };
