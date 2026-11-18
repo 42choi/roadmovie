@@ -468,7 +468,7 @@ $('startMake').onclick = async () => {
     }
     if (rec.state === 'paused') rec.resume();
 
-    const titleLines = [`${fmtDateTime(list[0].createdAt)} ~`, fmtDateTime(list[list.length - 1].createdAt)];
+    const titleLines = [fmtDateTime(list[0].createdAt), `~ ${fmtDateTime(list[list.length - 1].createdAt)}`];
     prog.textContent = '날짜 장면 녹화 중…';
     const TITLE_FADE_MS = 300; // 나타나고 사라지는 데 걸리는 시간 — 나머지는 선명하게 유지
     await new Promise(res => {
