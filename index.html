@@ -353,14 +353,16 @@ function fmtDateOnly(t) {
   const d = new Date(t);
   return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
 }
-function drawTitleCard(g, W, H, text) {
+function drawTitleCard(g, W, H, text, alpha) {
   g.fillStyle = '#000';
   g.fillRect(0, 0, W, H);
+  g.globalAlpha = alpha;
   g.fillStyle = '#fff';
   g.textAlign = 'center';
   g.textBaseline = 'middle';
   g.font = `${Math.round(W * 0.055)}px -apple-system, sans-serif`;
   g.fillText(text, W / 2, H / 2);
+  g.globalAlpha = 1;
 }
 function playSegment(v, g, W, H, rec, audio) {
   return new Promise(async res => {
@@ -463,8 +465,11 @@ $('startMake').onclick = async () => {
     await new Promise(res => {
       const t0 = performance.now();
       const tick = () => {
-        drawTitleCard(g, W, H, titleText);   // 안 바뀌는 화면도 매 프레임 다시 그려야 캡처가 끊기지 않음(사파리)
-        if (performance.now() - t0 >= TITLE_MS) return res();
+        const p = Math.min(1, (performance.now() - t0) / TITLE_MS);
+        // 완전히 똑같은 정지 화면이 계속되면 아이폰 인코더가 그 구간을 생략해버려서,
+        // 페이드 인/아웃으로 매 프레임 살짝씩 바뀌게 해서 녹화에서 빠지지 않게 함
+        drawTitleCard(g, W, H, titleText, Math.sin(p * Math.PI));
+        if (p >= 1) return res();
         requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);
