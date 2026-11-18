@@ -462,14 +462,19 @@ $('startMake').onclick = async () => {
     const lastDate = fmtDateOnly(list[list.length - 1].createdAt);
     const titleText = firstDate === lastDate ? firstDate : `${firstDate} - ${lastDate}`;
     prog.textContent = '날짜 장면 녹화 중…';
+    const TITLE_FADE_MS = 300; // 나타나고 사라지는 데 걸리는 시간 — 나머지는 선명하게 유지
     await new Promise(res => {
       const t0 = performance.now();
       const tick = () => {
-        const p = Math.min(1, (performance.now() - t0) / TITLE_MS);
+        const elapsed = performance.now() - t0;
+        let base = 1;
+        if (elapsed < TITLE_FADE_MS) base = elapsed / TITLE_FADE_MS;
+        else if (elapsed > TITLE_MS - TITLE_FADE_MS) base = Math.max(0, (TITLE_MS - elapsed) / TITLE_FADE_MS);
         // 완전히 똑같은 정지 화면이 계속되면 아이폰 인코더가 그 구간을 생략해버려서,
-        // 페이드 인/아웃으로 매 프레임 살짝씩 바뀌게 해서 녹화에서 빠지지 않게 함
-        drawTitleCard(g, W, H, titleText, Math.sin(p * Math.PI));
-        if (p >= 1) return res();
+        // 눈에 안 보일 정도의 아주 미세한 떨림을 계속 줘서 녹화에서 빠지지 않게 함
+        const alpha = Math.max(0, Math.min(1, base + 0.015 * Math.sin(elapsed / 60)));
+        drawTitleCard(g, W, H, titleText, alpha);
+        if (elapsed >= TITLE_MS) return res();
         requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);
