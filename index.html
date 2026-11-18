@@ -349,19 +349,23 @@ function drawCover(g, v, W, H) {
   g.drawImage(v, (W - dw) / 2, (H - dh) / 2, dw, dh);
   g.restore();
 }
-function fmtDateOnly(t) {
+function fmtDateTime(t) {
   const d = new Date(t);
-  return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}`;
+  const hh = String(d.getHours()).padStart(2, '0'), mm = String(d.getMinutes()).padStart(2, '0');
+  return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()} ${hh}:${mm}`;
 }
-function drawTitleCard(g, W, H, text, alpha) {
+function drawTitleCard(g, W, H, lines, alpha) {
   g.fillStyle = '#000';
   g.fillRect(0, 0, W, H);
   g.globalAlpha = alpha;
   g.fillStyle = '#fff';
   g.textAlign = 'center';
   g.textBaseline = 'middle';
-  g.font = `${Math.round(W * 0.055)}px -apple-system, sans-serif`;
-  g.fillText(text, W / 2, H / 2);
+  const fontSize = Math.round(W * 0.05);
+  g.font = `${fontSize}px -apple-system, sans-serif`;
+  const lineHeight = fontSize * 1.4;
+  const startY = H / 2 - (lines.length - 1) * lineHeight / 2;
+  lines.forEach((line, i) => g.fillText(line, W / 2, startY + i * lineHeight));
   g.globalAlpha = 1;
 }
 function markFrameChanged(g, W, H, n) {
@@ -464,9 +468,7 @@ $('startMake').onclick = async () => {
     }
     if (rec.state === 'paused') rec.resume();
 
-    const firstDate = fmtDateOnly(list[0].createdAt);
-    const lastDate = fmtDateOnly(list[list.length - 1].createdAt);
-    const titleText = firstDate === lastDate ? firstDate : `${firstDate} - ${lastDate}`;
+    const titleLines = [fmtDateTime(list[0].createdAt), '~', fmtDateTime(list[list.length - 1].createdAt)];
     prog.textContent = '날짜 장면 녹화 중…';
     const TITLE_FADE_MS = 300; // 나타나고 사라지는 데 걸리는 시간 — 나머지는 선명하게 유지
     await new Promise(res => {
@@ -477,7 +479,7 @@ $('startMake').onclick = async () => {
         let alpha = 1;
         if (elapsed < TITLE_FADE_MS) alpha = elapsed / TITLE_FADE_MS;
         else if (elapsed > TITLE_MS - TITLE_FADE_MS) alpha = Math.max(0, (TITLE_MS - elapsed) / TITLE_FADE_MS);
-        drawTitleCard(g, W, H, titleText, alpha);
+        drawTitleCard(g, W, H, titleLines, alpha);
         markFrameChanged(g, W, H, n++);
         if (elapsed >= TITLE_MS) return res();
         requestAnimationFrame(tick);
